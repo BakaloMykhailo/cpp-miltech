@@ -69,6 +69,11 @@ Frame parse_frame(char line[]) {
     const int field_count = split_line(line, fields, EXPECTED_FIELD_COUNT);
     (void)field_count;
 
+    if(field_count != EXPECTED_FIELD_COUNT) {
+        std::cerr << "Invalid frame at line:" << line << " expected:" << EXPECTED_FIELD_COUNT << " fields, got:" << field_count << std::endl;
+        std::exit(1);
+    }
+
     Frame frame{};
     frame.timestamp_ms = parse_long(fields[0]);
     frame.seq = parse_int(fields[1]);
