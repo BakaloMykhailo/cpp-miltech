@@ -102,6 +102,7 @@ int read_frames(const char* path, Frame frames[], int max_frames) {
 
     int frame_count = 0;
     char line[MAX_LINE_LENGTH];
+    long prev_timestamp_ms = -1;
 
     while (input.getline(line, MAX_LINE_LENGTH)) {
         if (line[0] == '\0') {
@@ -110,6 +111,14 @@ int read_frames(const char* path, Frame frames[], int max_frames) {
 
         if (frame_count < max_frames) {
             frames[frame_count] = parse_frame(line);
+            
+            if (frames[frame_count].timestamp_ms <= prev_timestamp_ms) {
+                std::cerr << "error: invalid timestamp_ms: " << frames[frame_count].timestamp_ms 
+                          << " (must be greater than previous: " << prev_timestamp_ms << ")\n";
+                std::exit(1);
+            }
+            
+            prev_timestamp_ms = frames[frame_count].timestamp_ms;
             ++frame_count;
         }
     }
