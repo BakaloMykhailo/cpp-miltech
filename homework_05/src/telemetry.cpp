@@ -43,7 +43,8 @@ long parse_long(const char* text) {
     const long value = std::strtol(text, &end, 10);
 
     if (end == text) {
-        std::abort();
+        std::cerr << "error: invalid numeric value: " << text << '\n';
+        std::exit(1);
     }
 
     return value;
@@ -58,7 +59,8 @@ double parse_double(const char* text) {
     const double value = std::strtod(text, &end);
 
     if (end == text) {
-        std::abort();
+        std::cerr << "error: invalid numeric value: " << text << '\n';
+        std::exit(1);
     }
 
     return value;
@@ -68,6 +70,11 @@ Frame parse_frame(char line[]) {
     char* fields[EXPECTED_FIELD_COUNT] = {};
     const int field_count = split_line(line, fields, EXPECTED_FIELD_COUNT);
     (void)field_count;
+
+    if(field_count != EXPECTED_FIELD_COUNT) {
+        std::cerr << "Invalid frame at line:" << line << " expected:" << EXPECTED_FIELD_COUNT << " fields, got:" << field_count << std::endl;
+        std::exit(1);
+    }
 
     Frame frame{};
     frame.timestamp_ms = parse_long(fields[0]);
@@ -95,6 +102,8 @@ int read_frames(const char* path, Frame frames[], int max_frames) {
 
     int frame_count = 0;
     char line[MAX_LINE_LENGTH];
+    long prev_timestamp_ms = -1;
+    int prev_seq = 0;
 
     while (input.getline(line, MAX_LINE_LENGTH)) {
         if (line[0] == '\0') {
@@ -103,8 +112,52 @@ int read_frames(const char* path, Frame frames[], int max_frames) {
 
         if (frame_count < max_frames) {
             frames[frame_count] = parse_frame(line);
+            
+            if (frames[frame_count].timestamp_ms <= prev_timestamp_ms) {
+                std::cerr << "error: invalid timestamp_ms: " << frames[frame_count].timestamp_ms 
+                          << " (must be greater than previous: " << prev_timestamp_ms << ")\n";
+                std::exit(1);
+            }
+            
+            if (frames[frame_count].seq != prev_seq + 1) {
+                std::cerr << "error: invalid seq: " << frames[frame_count].seq 
+                          << " (must be previous seq + 1: " << (prev_seq + 1) << ")\n";
+                std::exit(1);
+            }
+
+            if (frames[frame_count].voltage_v <= 0.0) {
+                std::cerr << "error: invalid voltage_v: " << frames[frame_count].voltage_v 
+                          << " (must be positive)\n";
+                std::exit(1);
+            }
+
+            if (frames[frame_count].temperature_c < -40.0 || frames[frame_count].temperature_c > 120.0) {
+                std::cerr << "error: invalid temperature_c: " << frames[frame_count].temperature_c 
+                          << " (must be between -40 and 120)\n";
+                std::exit(1);
+            }
+            
+            if (frames[frame_count].gps_fix != 0 && frames[frame_count].gps_fix != 1) {
+                std::cerr << "error: invalid gps_fix: " << frames[frame_count].gps_fix 
+                          << " (must be 0 or 1)\n";
+                std::exit(1);
+            }
+            
+            if (frames[frame_count].satellites < 0) {
+                std::cerr << "error: invalid satellites amount: " << frames[frame_count].satellites 
+                          << " (must be >= 0)\n";
+                std::exit(1);
+            }
+            
+            prev_timestamp_ms = frames[frame_count].timestamp_ms;
+            prev_seq = frames[frame_count].seq;
             ++frame_count;
         }
+    }
+
+    if (frame_count == 0) {
+        std::cerr << "error: input file is empty\n";
+        std::exit(1);
     }
 
     return frame_count;
